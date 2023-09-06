@@ -62,14 +62,11 @@ def main(cfg) -> None:
     plugins = []
     
     nlp_xla_checkpoint_io = NLPCheckpointIO()
-    cluster_environment = None
-    if os.environ.get("TORCHELASTIC_RUN_ID") is not None:
-        cluster_environment=TorchElasticEnvironment()
     strategy = NLPDDPStrategy(
         no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
         gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
         find_unused_parameters=False,
-        cluster_environment=cluster_environment,
+        cluster_environment=TorchElasticEnvironment(),
         checkpoint_io=nlp_xla_checkpoint_io,
         megatron_amp_o2=megatron_amp_o2
     )
