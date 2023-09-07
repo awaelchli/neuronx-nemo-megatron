@@ -10,58 +10,28 @@ export FI_EFA_USE_DEVICE_RDMA=1
 export FI_PROVIDER=efa
 export FI_EFA_FORK_SAFE=1
 
-
 DATE=$(date +%F_%H-%M-%S)
-
-if [ -v SLURM_NNODES ]
-then
-    # SLURM runs
-    IPS=""
-    for h in $(scontrol show hostname); do
-        IPS="$IPS $(nslookup $h  | awk '/^Address: / { print $2 }')";
-    done
-    HOSTS=(${IPS//\ / })
-    NODEID=$SLURM_NODEID
-    NTASKS=$SLURM_NTASKS
-    export NEMO_EXPM_VERSION=$SLURM_JOB_ID
-    export EXPLICIT_LOGDIR=null
-    LOG_PATH=logs/$SLURM_JOB_ID.$DATE/$NODEID/
-elif [ -v OMPI_COMM_WORLD_RANK ]
-then
-    # MPI runs on EKS
-    export CCOM_SOCKET_IFNAME=eth0
-    NODELIST=`/nodelist_helper.py`
-    HOSTS=(${NODELIST//\ / })
-    NODEID=$OMPI_COMM_WORLD_RANK
-    NTASKS=$OMPI_COMM_WORLD_SIZE
-    export EXPLICIT_LOGDIR=/shared/nemo_experiments/$POD_UID.$DATE
-    LOG_PATH=$EXPLICIT_LOGDIR/$NODEID/
-else
-    # Single-node, non-SLURM, non-MPI runs
-    HOSTS=(localhost)
-    NODEID=0
-    NTASKS=1
-    export NEMO_EXPM_VERSION=$(date "+%Y-%m-%d_%H-%M-%S")
-    export EXPLICIT_LOGDIR=null
-    LOG_PATH=./nemo_experiments/logs.$DATE
-fi
-
+export NEMO_EXPM_VERSION=$(date "+%Y-%m-%d_%H-%M-%S")
+export EXPLICIT_LOGDIR=null
+LOG_PATH=./nemo_experiments/logs.$DATE
 mkdir -p $LOG_PATH
 
 export HYDRA_FULL_ERROR=1
 export PROCESSES_PER_NODE=2
-export MASTER_ADDR=${HOSTS[0]}
-export MASTER_PORT=41000
+NTASKS=1
+# NODEID=0
+
+if [ -z "$MASTER_ADDR" ]; then
+    export MASTER_ADDR=localhost
+    export MASTER_PORT=41000
+fi
+
 
 export NEURON_RT_EXEC_TIMEOUT=10
-DISTRIBUTED_ARGS="--nproc_per_node $PROCESSES_PER_NODE --nnodes $NTASKS --node_rank $NODEID --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
-echo $DISTRIBUTED_ARGS
-
 export NEURON_RT_ASYNC_EXEC_MAX_INFLIGHT_REQUESTS=3
 export NEURON_TRANSFER_WITH_STATIC_RING_OPS=""
 export MALLOC_ARENA_MAX=128
 export TF_NUM_INTEROP_THREADS=8192
-
 export NEURON_RT_STOCHASTIC_ROUNDING_EN=1
 export XLA_USE_BF16=1
 export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=nemo"
@@ -92,8 +62,6 @@ fi
 FFN_HS=$(($HS*4))
 echo "SEQ_LEN=$SEQ_LENGTH, HS=$HS, FFN_HS=$FFN_HS TP=$TP PP=$PP N_LAYERS=$N_LAYERS N_AH=$N_AH GBS=$GBS UBS=$UBS"
 
-
-# $MAYBE_COMPILE torchrun $DISTRIBUTED_ARGS megatron_gpt_pretraining.py  \
 
 SCRIPT_ARGS="
     --config-path=conf \
@@ -148,14 +116,21 @@ SCRIPT_ARGS="
     +exp_manager.checkpoint_callback_params.train_time_interval=3600 \
     model.use_cpu_initialization=True
 "
+# Note: to resume training using a checkpoint, please add the following configuration above, adjusting for your checkpoint path
+#    +model.load_xser=True \
+#    model.resume_from_checkpoint='/efs/checkpoint/megatron_gpt--step\=1085-consumed_samples\=69632.0-last.ckpt' \
 
+
+# Debugging:
+# DISTRIBUTED_ARGS="--nproc_per_node $PROCESSES_PER_NODE --nnodes $NTASKS --node_rank $NODEID --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 # $MAYBE_COMPILE torchrun $DISTRIBUTED_ARGS megatron_gpt_pretraining.py $SCRIPT_ARGS
-export TORCHELASTIC_RUN_ID=1
 
+
+export TORCHELASTIC_RUN_ID=1  # Hack: This env variable is used inside the script/NeMo to set ranks
+
+# Debugging:
 WORLD_SIZE=2 LOCAL_WORLD_SIZE=2 NODE_RANK=0 GROUP_RANK=0 LOCAL_RANK=0 RANK=0 $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS \
 & WORLD_SIZE=2 LOCAL_WORLD_SIZE=2 NODE_RANK=0 GROUP_RANK=0 LOCAL_RANK=1 RANK=1 $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS
 
-
-# # Note: to resume training using a checkpoint, please add the following configuration above, adjusting for your checkpoint path
-# #    +model.load_xser=True \
-# #    model.resume_from_checkpoint='/efs/checkpoint/megatron_gpt--step\=1085-consumed_samples\=69632.0-last.ckpt' \
+# On Lightning multi-node:
+# $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS
