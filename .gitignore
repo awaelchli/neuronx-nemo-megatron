@@ -1,3 +1,4 @@
 build/
 all_metrics.csv
 log-neuron-cc.txt
+neuronxcc-*
