@@ -9,4 +9,4 @@ export N_AH=8
 export ACT_CHKPNT_GRANULARITY=full
 
 # ./test.sh
-bash ./test_lightning.sh
+bash ./test_lightning_new.sh

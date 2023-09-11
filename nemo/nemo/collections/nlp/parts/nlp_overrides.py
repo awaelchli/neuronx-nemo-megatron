@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import itertools
 import os
 import shutil
@@ -640,7 +639,6 @@ class NLPDDPStrategy(TPUSpawnStrategy):
         # init model parallel if needed
         if parallel_state.is_unitialized():
             app_state = AppState()
-
             if app_state.model_parallel_size is not None:
                 self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
@@ -718,6 +716,8 @@ class NLPDDPStrategy(TPUSpawnStrategy):
             app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
             app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
             # app_state.global_rank = self.global_rank
+
+            print("----------------------- app_state.data_parallel_size", app_state.data_parallel_size)
 
             setup_microbatch_calculator(
                 rank=self.global_rank,

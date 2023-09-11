@@ -15,11 +15,21 @@ import lightning_neuron_patch
 import os
 
 from lightning_lite.plugins.environments import TorchElasticEnvironment
+
 from omegaconf.omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
+
+import torch_xla.core.xla_model as xm
+
+import os; assert "XRT_TPU_CONFIG" in os.environ
+print("xrt --------------------------------_", os.environ["XRT_TPU_CONFIG"])
+
+assert "XRT_TPU_CONFIG" not in os.environ
 from pytorch_lightning import Trainer
+assert "XRT_TPU_CONFIG" in os.environ
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -37,7 +47,6 @@ from nemo.utils.exp_manager import StatelessTimer, exp_manager
 import torch.optim.adamw as torch_adamw
 from nemo.core.optim.adamw import _single_tensor_adamw_
 torch_adamw._single_tensor_adamw = _single_tensor_adamw_
-
 
 class PretrainGPTModel(MegatronGPTModel):
     """
@@ -60,6 +69,12 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
     plugins = []
+
+    from pprint import pprint
+    import os
+    if int(os.environ["LOCAL_RANK"]) == 0:
+        print("os env -------------------------------------")
+        pprint(os.environ)
     
     nlp_xla_checkpoint_io = NLPCheckpointIO()
     strategy = NLPDDPStrategy(

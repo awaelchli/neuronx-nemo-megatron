@@ -49,7 +49,7 @@ fi
 mkdir -p $LOG_PATH
 
 export HYDRA_FULL_ERROR=1
-export PROCESSES_PER_NODE=32
+export PROCESSES_PER_NODE=2
 export MASTER_ADDR=${HOSTS[0]}
 export MASTER_PORT=41000
 
@@ -93,7 +93,9 @@ FFN_HS=$(($HS*4))
 echo "SEQ_LEN=$SEQ_LENGTH, HS=$HS, FFN_HS=$FFN_HS TP=$TP PP=$PP N_LAYERS=$N_LAYERS N_AH=$N_AH GBS=$GBS UBS=$UBS"
 
 
-$MAYBE_COMPILE torchrun $DISTRIBUTED_ARGS megatron_gpt_pretraining.py  \
+# $MAYBE_COMPILE torchrun $DISTRIBUTED_ARGS megatron_gpt_pretraining.py  \
+
+SCRIPT_ARGS="
     --config-path=conf \
     --config-name=megatron_gpt_config \
     trainer.devices=$PROCESSES_PER_NODE \
@@ -144,8 +146,16 @@ $MAYBE_COMPILE torchrun $DISTRIBUTED_ARGS megatron_gpt_pretraining.py  \
     exp_manager.create_checkpoint_callback=False \
     exp_manager.explicit_log_dir=$EXPLICIT_LOGDIR \
     +exp_manager.checkpoint_callback_params.train_time_interval=3600 \
-    model.use_cpu_initialization=True   2>&1  | tee  $LOG_PATH/log
+    model.use_cpu_initialization=True
+"
 
-# Note: to resume training using a checkpoint, please add the following configuration above, adjusting for your checkpoint path
-#    +model.load_xser=True \
-#    model.resume_from_checkpoint='/efs/checkpoint/megatron_gpt--step\=1085-consumed_samples\=69632.0-last.ckpt' \
+# $MAYBE_COMPILE torchrun $DISTRIBUTED_ARGS megatron_gpt_pretraining.py $SCRIPT_ARGS
+export TORCHELASTIC_RUN_ID=1
+
+WORLD_SIZE=2 LOCAL_WORLD_SIZE=2 NODE_RANK=0 GROUP_RANK=0 LOCAL_RANK=0 RANK=0 $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS \
+& WORLD_SIZE=2 LOCAL_WORLD_SIZE=2 NODE_RANK=0 GROUP_RANK=0 LOCAL_RANK=1 RANK=1 $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS
+
+
+# # Note: to resume training using a checkpoint, please add the following configuration above, adjusting for your checkpoint path
+# #    +model.load_xser=True \
+# #    model.resume_from_checkpoint='/efs/checkpoint/megatron_gpt--step\=1085-consumed_samples\=69632.0-last.ckpt' \

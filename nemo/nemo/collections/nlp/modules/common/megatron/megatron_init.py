@@ -113,6 +113,12 @@ def initialize_model_parallel_for_nemo(
 
     _set_random_seed(seed, main_proc)
 
+    from pprint import pprint
+    import os
+    if global_rank == 0:
+        print("os env -------------------------------------")
+        pprint(os.environ)
+
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
         from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
@@ -127,6 +133,8 @@ def initialize_model_parallel_for_nemo(
             )
         else:
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatches):
+                print(f" batches ---------------- {_GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches} {global_batch_size} {micro_batch_size} {app_state.data_parallel_size}")
+
                 assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size == global_batch_size
                 assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size == micro_batch_size
                 assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches == global_batch_size // (

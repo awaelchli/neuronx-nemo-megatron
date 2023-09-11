@@ -9,6 +9,7 @@ def auto_device_count_patched() -> int:
     """Get the devices when set to auto."""
     return 2
 
+
 _XLA_AVAILABLE = RequirementCache("torch_xla")
 
 @functools.lru_cache(maxsize=1)

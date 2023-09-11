@@ -4,12 +4,11 @@ set -e
 
 ulimit -n 65535
 
-# sudo sysctl -w net.ipv4.ip_local_reserved_ports=41000
+sudo sysctl -w net.ipv4.ip_local_reserved_ports=41000
 
 export FI_EFA_USE_DEVICE_RDMA=1
 export FI_PROVIDER=efa
 export FI_EFA_FORK_SAFE=1
-
 
 DATE=$(date +%F_%H-%M-%S)
 export NEMO_EXPM_VERSION=$(date "+%Y-%m-%d_%H-%M-%S")
@@ -18,8 +17,15 @@ LOG_PATH=./nemo_experiments/logs.$DATE
 mkdir -p $LOG_PATH
 
 export HYDRA_FULL_ERROR=1
-export PROCESSES_PER_NODE=32
-export NTASKS=2  # number of nodes
+export PROCESSES_PER_NODE=2
+NTASKS=1
+NODEID=0
+
+if [ -z "$MASTER_ADDR" ]; then
+    export MASTER_ADDR=localhost
+    export MASTER_PORT=41000
+fi
+
 
 export NEURON_RT_EXEC_TIMEOUT=10
 export NEURON_RT_ASYNC_EXEC_MAX_INFLIGHT_REQUESTS=3
@@ -30,6 +36,7 @@ export NEURON_RT_STOCHASTIC_ROUNDING_EN=1
 export XLA_USE_BF16=1
 export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=nemo"
 export NEURON_COMPILE_CACHE_URL="$HOME/neuron_cache" # Place cache on shared storage to reduce redundant compilations
+
 
 export TRAIN_ITERS=300000
 export GBS=$((NTASKS*32))
@@ -56,7 +63,7 @@ FFN_HS=$(($HS*4))
 echo "SEQ_LEN=$SEQ_LENGTH, HS=$HS, FFN_HS=$FFN_HS TP=$TP PP=$PP N_LAYERS=$N_LAYERS N_AH=$N_AH GBS=$GBS UBS=$UBS"
 
 
-$MAYBE_COMPILE python megatron_gpt_pretraining.py  \
+SCRIPT_ARGS="
     --config-path=conf \
     --config-name=megatron_gpt_config \
     trainer.devices=$PROCESSES_PER_NODE \
@@ -108,7 +115,50 @@ $MAYBE_COMPILE python megatron_gpt_pretraining.py  \
     exp_manager.explicit_log_dir=$EXPLICIT_LOGDIR \
     +exp_manager.checkpoint_callback_params.train_time_interval=3600 \
     model.use_cpu_initialization=True
-
+"
 # Note: to resume training using a checkpoint, please add the following configuration above, adjusting for your checkpoint path
 #    +model.load_xser=True \
 #    model.resume_from_checkpoint='/efs/checkpoint/megatron_gpt--step\=1085-consumed_samples\=69632.0-last.ckpt' \
+
+
+# Debugging:
+DISTRIBUTED_ARGS="--nproc_per_node $PROCESSES_PER_NODE --nnodes $NTASKS --node_rank $NODEID --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
+$MAYBE_COMPILE torchrun $DISTRIBUTED_ARGS megatron_gpt_pretraining.py $SCRIPT_ARGS
+
+
+export TORCHELASTIC_RUN_ID=1  # Hack: This env variable is used inside the script/NeMo to set ranks
+# export XRT_START_LOCAL_SERVER=0
+
+# Debugging:
+# WORLD_SIZE=2 LOCAL_WORLD_SIZE=2 NODE_RANK=0 GROUP_RANK=0 LOCAL_RANK=0 RANK=0 $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS \
+# & WORLD_SIZE=2 LOCAL_WORLD_SIZE=2 NODE_RANK=0 GROUP_RANK=0 LOCAL_RANK=1 RANK=1 $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS
+
+
+# if [ "$NODE_RANK" ]; then
+#     export GROUP_RANK=$NODE_RANK
+# fi
+# if [ -z "$LOCAL_WORLD_SIZE" ]; then
+#     export LOCAL_WORLD_SIZE=$PROCESSES_PER_NODE
+#     export GROUP_WORLD_SIZE=$NTASKS
+# fi
+
+# # For debugging:
+# export XRT_SHARD_WORLD_SIZE=$WORLD_SIZE
+# export XRT_HOST_WORLD_SIZE=$PROCESSES_PER_NODE
+# export XRT_SHARD_ORDINAL=$RANK
+# export XRT_SHARD_LOCAL_ORDINAL=$LOCAL_RANK
+# export XRT_MULTI_PROCESSING_DEVICE="TPU:0"
+# export XRT_START_LOCAL_SERVER=0
+# export XRT_MESH_SERVICE_ADDRESS=$MASTER_ADDR:$MASTER_PORT
+# export TPU_MESH_CONTROLLER_ADDRESS=$MASTER_ADDR:$MASTER_PORT
+# export TPU_MESH_CONTROLLER_PORT=$MASTER_PORT
+# export XRT_TPU_CONFIG="localservice;0;$MASTER_ADDR:$MASTER_PORT"
+# export XRT_LOCAL_WORKER=localservice:0
+# export NEURON_USE_LOAD_COLLECTIVES=1
+
+# # On Lightning multi-node:
+# $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS
+
+# # NEURON_GLOBAL_DEVICE_ID :: 0
+# # NEURON_GLOBAL_DEVICE_COUNT :: 2
+# # NEURON_RT_VISIBLE_CORES :: 0,1
