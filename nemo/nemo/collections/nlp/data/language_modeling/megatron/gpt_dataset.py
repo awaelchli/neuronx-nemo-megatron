@@ -538,7 +538,8 @@ def _build_index_mappings(
     shuffle_idx_filename = _filename + '_shuffle_idx.npy'
 
     # Build the indexed mapping if not exist.
-    if torch.distributed.get_rank() == 0:
+    if int(os.environ["LOCAL_RANK"]) == 0:  # THE FILESYSTEM IS NOT SHARED BETWEEN NODES!
+    # if torch.distributed.get_rank() == 0:
         if (
             (not os.path.isfile(doc_idx_filename))
             or (not os.path.isfile(sample_idx_filename))

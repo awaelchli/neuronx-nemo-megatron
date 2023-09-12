@@ -24,7 +24,7 @@ import torch_xla.core.xla_model as xm
 import os; assert "XRT_TPU_CONFIG" in os.environ
 print("xrt --------------------------------_", os.environ["XRT_TPU_CONFIG"])
 
-assert "XRT_TPU_CONFIG" not in os.environ
+# assert "XRT_TPU_CONFIG" not in os.environ
 from pytorch_lightning import Trainer
 assert "XRT_TPU_CONFIG" in os.environ
 from pytorch_lightning.callbacks.timer import Timer
