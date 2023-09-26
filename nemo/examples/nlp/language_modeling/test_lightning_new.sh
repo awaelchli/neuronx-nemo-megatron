@@ -17,7 +17,7 @@ LOG_PATH=./nemo_experiments/logs.$DATE
 mkdir -p $LOG_PATH
 
 export HYDRA_FULL_ERROR=1
-export PROCESSES_PER_NODE=2
+export PROCESSES_PER_NODE=32
 NTASKS=2
 # NODEID=0
 
@@ -34,8 +34,8 @@ export MALLOC_ARENA_MAX=128
 export TF_NUM_INTEROP_THREADS=8192
 export NEURON_RT_STOCHASTIC_ROUNDING_EN=1
 export XLA_USE_BF16=1
-export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=nemo"
-export NEURON_COMPILE_CACHE_URL="$HOME/neuron_cache" # Place cache on shared storage to reduce redundant compilations
+export NEURON_CC_FLAGS="--model-type transformer --distribution-strategy=nemo  --retry_failed_compilation"
+export NEURON_COMPILE_CACHE_URL="$HOME/neuron_cache2" # Place cache on shared storage to reduce redundant compilations
 
 
 export TRAIN_ITERS=300000
@@ -142,19 +142,8 @@ if [ -z "$LOCAL_WORLD_SIZE" ]; then
     export GROUP_WORLD_SIZE=$NTASKS
 fi
 
-# For debugging:
-# export XRT_SHARD_WORLD_SIZE=$WORLD_SIZE
-# export XRT_HOST_WORLD_SIZE=$PROCESSES_PER_NODE
-# export XRT_SHARD_ORDINAL=$RANK
-# export XRT_SHARD_LOCAL_ORDINAL=$LOCAL_RANK
-# export XRT_MULTI_PROCESSING_DEVICE="TPU:0"
-# export XRT_START_LOCAL_SERVER=0
-# export XRT_MESH_SERVICE_ADDRESS=$MASTER_ADDR:$MASTER_PORT
-# export TPU_MESH_CONTROLLER_ADDRESS=$MASTER_ADDR:$MASTER_PORT
-# export TPU_MESH_CONTROLLER_PORT=$MASTER_PORT
-# export XRT_TPU_CONFIG="localservice;0;$MASTER_ADDR:$MASTER_PORT"
-# export XRT_LOCAL_WORKER=localservice:0
-export NEURON_USE_LOAD_COLLECTIVES=1
+
+# export NEURON_USE_LOAD_COLLECTIVES=1
 
 # On Lightning multi-node:
 $MAYBE_COMPILE python megatron_gpt_pretraining.py $SCRIPT_ARGS
